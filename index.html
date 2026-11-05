@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>集中タイマー</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#f3f4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14181f" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="集中タイマー">
+<style>
+:root{
+  --bg:#f3f4f1; --surface:#fbfbf9; --ink:#1d2430; --muted:#6b7280; --line:#d9dcd6;
+  --focus:#2b4a8b; --break:#4f7a5a; --long:#8a6a2f; --accent:var(--focus);
+  color-scheme:light;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181f; --surface:#1b212b; --ink:#e8eaee; --muted:#98a0ae; --line:#2b3340;
+    --focus:#7fa0e6; --break:#86b894; --long:#d2ad65; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181f; --surface:#1b212b; --ink:#e8eaee; --muted:#98a0ae; --line:#2b3340;
+  --focus:#7fa0e6; --break:#86b894; --long:#d2ad65; color-scheme:dark;
+}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",Meiryo,sans-serif;
+  display:flex;justify-content:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px));-webkit-text-size-adjust:100%}
+main{width:100%;max-width:420px}
+body[data-mode="break"]{--accent:var(--break)}
+body[data-mode="long"]{--accent:var(--long)}
+body[data-mode="focus"]{--accent:var(--focus)}
+
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.modes button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:500;padding:10px 4px;border-radius:9px;cursor:pointer}
+.modes button[aria-pressed="true"]{background:var(--accent);color:var(--bg);font-weight:700}
+
+.dial{position:relative;margin:28px auto 8px;width:min(78vw,320px);aspect-ratio:1}
+.dial svg{width:100%;height:100%;transform:rotate(-90deg)}
+.track{fill:none;stroke:var(--line);stroke-width:8}
+.prog{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .25s linear,stroke .3s}
+.read{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.time{font-size:clamp(52px,17vw,76px);font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1}
+.label{color:var(--muted);font-size:15px}
+.count{text-align:center;color:var(--muted);font-size:14px;min-height:22px}
+
+.ctrl{display:flex;gap:10px;margin:18px 0 28px}
+.ctrl button{font:inherit;font-weight:700;border-radius:12px;padding:14px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.ctrl .main{flex:1;background:var(--accent);border-color:var(--accent);color:var(--bg);font-size:18px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.settings{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 18px}
+.settings h2{font-size:15px;margin:14px 0 4px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row label{font-size:15px}
+.num{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:14px}
+.num input{width:64px;font:inherit;font-size:17px;text-align:right;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums}
+.row.check input{width:22px;height:22px;accent-color:var(--accent)}
+.hint{color:var(--muted);font-size:13px;margin:10px 2px 0;text-align:center}
+button{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.time,.modes,.ctrl{-webkit-user-select:none;user-select:none}
+.ctrl button{min-height:54px}
+.modes button{min-height:46px}
+.num input{width:56px;text-align:center;-moz-appearance:textfield}
+.num input::-webkit-inner-spin-button,.num input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.step{width:42px;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:20px;line-height:1;cursor:pointer;padding:0}
+.row.check{min-height:52px}
+.row.check input{flex:none}
+@media (max-width:380px){body{padding-top:16px}.modes button{font-size:14px}.ctrl{gap:8px}.ctrl button{padding:14px 10px}.row label{font-size:14px}}
+@media (max-height:560px) and (orientation:landscape){.dial{width:min(46vh,240px);margin-top:16px}}
+@media (prefers-reduced-motion:reduce){.prog{transition:none}}
+</style>
+</head>
+<body data-mode="focus">
+<main>
+  <div class="modes" role="group" aria-label="モード">
+    <button data-mode="focus" aria-pressed="true">集中</button>
+    <button data-mode="break" aria-pressed="false">休憩</button>
+    <button data-mode="long" aria-pressed="false">長い休憩</button>
+  </div>
+
+  <div class="dial">
+    <svg viewBox="0 0 120 120" aria-hidden="true">
+      <circle class="track" cx="60" cy="60" r="54"/>
+      <circle class="prog" id="prog" cx="60" cy="60" r="54"/>
+    </svg>
+    <div class="read">
+      <div class="time" id="time" role="timer" aria-live="off">25:00</div>
+      <div class="label" id="label">集中する時間</div>
+    </div>
+  </div>
+  <div class="count" id="count"></div>
+
+  <div class="ctrl">
+    <button id="reset" type="button">リセット</button>
+    <button id="toggle" class="main" type="button">開始</button>
+    <button id="skip" type="button">スキップ</button>
+  </div>
+
+  <section class="settings" aria-label="時間の設定">
+    <h2>時間を変更</h2>
+    <div class="row"><label for="s-focus">集中</label><div class="num"><input id="s-focus" type="number" min="1" max="180" inputmode="numeric">分</div></div>
+    <div class="row"><label for="s-break">休憩</label><div class="num"><input id="s-break" type="number" min="1" max="60" inputmode="numeric">分</div></div>
+    <div class="row"><label for="s-long">長い休憩</label><div class="num"><input id="s-long" type="number" min="1" max="90" inputmode="numeric">分</div></div>
+    <div class="row"><label for="s-cycles">長い休憩までの集中回数</label><div class="num"><input id="s-cycles" type="number" min="2" max="10" inputmode="numeric">回</div></div>
+    <div class="row check"><label for="s-auto">次のタイマーを自動で開始</label><input id="s-auto" type="checkbox"></div>
+    <div class="row check"><label for="s-sound">終了時に音を鳴らす</label><input id="s-sound" type="checkbox"></div>
+    <div class="row check"><label for="s-wake">実行中は画面を消さない</label><input id="s-wake" type="checkbox"></div>
+    <div class="row check"><label for="s-notify">終了時に通知を出す</label><input id="s-notify" type="checkbox"></div>
+    <p class="hint" id="notify-msg" role="status" style="padding-bottom:10px"></p>
+  </section>
+  <p class="hint">スペースキーで開始・一時停止</p>
+</main>
+
+<script>
+(function(){
+  var DEFAULTS={focus:25,break:5,long:15,cycles:4,auto:false,sound:true,notify:false,wake:true};
+  var cfg=Object.assign({},DEFAULTS);
+  try{var saved=JSON.parse(localStorage.getItem("focus-timer-cfg")||"null");if(saved)Object.assign(cfg,saved);}catch(e){}
+  function save(){try{localStorage.setItem("focus-timer-cfg",JSON.stringify(cfg));}catch(e){}}
+
+  var NAMES={focus:"集中する時間",break:"休憩の時間",long:"長めの休憩"};
+  var C=2*Math.PI*54;
+  var $=function(id){return document.getElementById(id)};
+  var prog=$("prog"),timeEl=$("time"),labelEl=$("label"),countEl=$("count"),toggle=$("toggle");
+  prog.style.strokeDasharray=C;
+
+  var mode="focus",total=cfg.focus*60000,remain=total,running=false,endAt=0,done=0,timerId=null;
+
+  function fmt(ms){
+    var s=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(s/60),r=s%60;
+    return (m<10?"0":"")+m+":"+(r<10?"0":"")+r;
+  }
+  function render(){
+    timeEl.textContent=fmt(remain);
+    labelEl.textContent=NAMES[mode];
+    prog.style.strokeDashoffset=C*(1-(total?remain/total:0));
+    toggle.textContent=running?"一時停止":(remain<total?"再開":"開始");
+    countEl.textContent=(note?note+"　":"")+"完了した集中："+done+"回";
+    document.title=(running?fmt(remain)+" ":"")+"集中タイマー";
+    document.body.setAttribute("data-mode",mode);
+    document.querySelectorAll(".modes button").forEach(function(b){
+      b.setAttribute("aria-pressed",String(b.dataset.mode===mode));
+    });
+  }
+  function setMode(m,autoStart){
+    stop();
+    mode=m;
+    total=cfg[m]*60000;
+    remain=total;
+    render();
+    saveState();
+    if(autoStart)start();
+  }
+  function start(){
+    if(running)return;
+    if(remain<=0)remain=total;
+    if(cfg.sound)getCtx();
+    wakeOn();
+    running=true;
+    endAt=Date.now()+remain;
+    startTicker();
+    note="";
+    render();
+    saveState();
+  }
+  function stop(){
+    running=false;
+    wakeOff();
+    stopTicker();
+  }
+  function pause(){
+    if(!running)return;
+    remain=Math.max(0,endAt-Date.now());
+    stop();
+    render();
+    saveState();
+  }
+  function tick(){
+    remain=endAt-Date.now();
+    if(remain<=0){finish();return;}
+    render();
+  }
+  function next(){
+    if(mode==="focus"){
+      return (done>0&&done%cfg.cycles===0)?"long":"break";
+    }
+    return "focus";
+  }
+  function finish(){
+    stop();
+    remain=0;
+    if(mode==="focus")done++;
+    beep();
+    try{if(navigator.vibrate)navigator.vibrate([200,100,200]);}catch(e){}
+    var n=next();
+    var wasFocus=(mode=="focus");
+    notify(wasFocus?"集中が終わりました":"休憩が終わりました",wasFocus?(n==="long"?"長めの休憩にしましょう。":"少し休憩しましょう。"):"次の集中を始めましょう。");
+    setMode(n,cfg.auto);
+  }
+  var actx=null,wl=null;
+  function getCtx(){
+    try{
+      if(!actx){var A=window.AudioContext||window.webkitAudioContext;if(A)actx=new A();}
+      if(actx&&actx.state==="suspended")actx.resume();
+    }catch(e){}
+    return actx;
+  }
+  function wakeOn(){
+    try{
+      if(cfg.wake&&navigator.wakeLock&&!wl){
+        navigator.wakeLock.request("screen").then(function(s){
+          wl=s;s.addEventListener("release",function(){wl=null;});
+        }).catch(function(){});
+      }
+    }catch(e){}
+  }
+  function wakeOff(){try{if(wl){wl.release();wl=null;}}catch(e){}}
+  function beep(){
+    if(!cfg.sound)return;
+    try{
+      var ctx=getCtx();
+      if(!ctx)return;
+      [0,0.28,0.56].forEach(function(t){
+        var o=ctx.createOscillator(),g=ctx.createGain();
+        o.type="sine";o.frequency.value=880;
+        g.gain.setValueAtTime(0.0001,ctx.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(0.25,ctx.currentTime+t+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+t+0.22);
+        o.connect(g);g.connect(ctx.destination);
+        o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+0.25);
+      });
+    }catch(e){}
+  }
+
+  function canNotify(){return "Notification" in window;}
+  var swReg=null;
+  function notify(title,body){
+    if(!cfg.notify||!canNotify()||Notification.permission!=="granted")return;
+    var opts={body:body,tag:"focus-timer",icon:"icon-192.png",badge:"icon-192.png"};
+    try{
+      if(swReg&&swReg.showNotification){swReg.showNotification(title,opts);return;}
+    }catch(e){}
+    try{
+      var n=new Notification(title,opts);
+      n.onclick=function(){window.focus();n.close();};
+    }catch(e){}
+  }
+
+  toggle.addEventListener("click",function(){running?pause():start();});
+  $("reset").addEventListener("click",function(){stop();remain=total;note="";render();saveState();});
+  $("skip").addEventListener("click",function(){
+    var wasFocus=mode==="focus";
+    stop();
+    if(wasFocus)done++;
+    setMode(next(),false);
+  });
+  document.querySelectorAll(".modes button").forEach(function(b){
+    b.addEventListener("click",function(){setMode(b.dataset.mode,false);});
+  });
+  document.addEventListener("keydown",function(e){
+    if(e.code==="Space"&&!/INPUT|BUTTON/.test(e.target.tagName)){e.preventDefault();running?pause():start();}
+  });
+  document.addEventListener("visibilitychange",function(){if(running){tick();wakeOn();}});
+
+  // Settings
+  var fields={focus:"s-focus",break:"s-break",long:"s-long",cycles:"s-cycles"};
+  var limits={focus:[1,180],break:[1,60],long:[1,90],cycles:[2,10]};
+  Object.keys(fields).forEach(function(k){
+    var el=$(fields[k]);
+    function mk(txt,d,label){
+      var b=document.createElement("button");
+      b.type="button";b.className="step";b.textContent=txt;b.setAttribute("aria-label",label);
+      b.addEventListener("click",function(){
+        var v=parseInt(el.value,10);if(isNaN(v))v=cfg[k];
+        el.value=Math.min(limits[k][1],Math.max(limits[k][0],v+d));
+        el.dispatchEvent(new Event("input"));
+      });
+      return b;
+    }
+    el.parentNode.insertBefore(mk("−",-1,"減らす"),el);
+    el.parentNode.insertBefore(mk("+",1,"増やす"),el.nextSibling);
+    el.value=cfg[k];
+    el.addEventListener("input",function(){
+      var v=parseInt(el.value,10);
+      if(isNaN(v))return;
+      v=Math.min(limits[k][1],Math.max(limits[k][0],v));
+      cfg[k]=v;
+      save();
+      // Apply right away only to an idle timer that hasn't started counting
+      if(k===mode&&!running&&remain===total){total=v*60000;remain=total;render();saveState();}
+      else if(k===mode&&!running){total=v*60000;remain=Math.min(remain,total);render();saveState();}
+    });
+    el.addEventListener("blur",function(){el.value=cfg[k];});
+  });
+  $("s-auto").checked=cfg.auto;
+  $("s-sound").checked=cfg.sound;
+  $("s-auto").addEventListener("change",function(e){cfg.auto=e.target.checked;save();});
+  $("s-sound").addEventListener("change",function(e){cfg.sound=e.target.checked;save();});
+  $("s-wake").checked=cfg.wake;
+  $("s-wake").addEventListener("change",function(e){
+    cfg.wake=e.target.checked;save();
+    if(cfg.wake){if(running)wakeOn();}else wakeOff();
+  });
+  $("s-notify").checked=cfg.notify&&canNotify()&&Notification.permission==="granted";
+  if(!$("s-notify").checked)cfg.notify=false;
+  $("s-notify").addEventListener("change",function(e){
+    var box=e.target,msg=$("notify-msg");
+    msg.textContent="";
+    function fail(t){box.checked=false;cfg.notify=false;save();msg.textContent=t;}
+    if(!box.checked){cfg.notify=false;save();return;}
+    if(!canNotify()){fail("この環境では通知を利用できません。iPhoneではホーム画面に追加すると使えます。音とバイブ（対応端末のみ）でもお知らせします。");return;}
+    if(Notification.permission==="denied"){fail("通知がブロックされています。ブラウザのサイト設定で許可してください。");return;}
+    Promise.resolve(Notification.requestPermission()).then(function(r){
+      if(r==="granted"){
+        cfg.notify=true;save();
+        notify("通知をオンにしました","時間になるとお知らせします。");
+      }else{
+        fail("通知が許可されませんでした。ブラウザのサイト設定で許可してください。");
+      }
+    }).catch(function(){fail("通知を有効にできませんでした。");});
+  });
+
+  // Ticker: a Worker is not throttled as hard as page timers when the tab is in the background
+  var ticker=null,tickWorker=null;
+  function startTicker(){
+    stopTicker();
+    try{
+      var url=URL.createObjectURL(new Blob(["setInterval(function(){postMessage(0)},250)"],{type:"text/javascript"}));
+      tickWorker=new Worker(url);
+      URL.revokeObjectURL(url);
+      tickWorker.onmessage=function(){tick();};
+      tickWorker.onerror=function(){
+        if(tickWorker){tickWorker.terminate();tickWorker=null;}
+        if(running&&!ticker)ticker=setInterval(tick,250);
+      };
+    }catch(e){tickWorker=null;ticker=setInterval(tick,250);}
+  }
+  function stopTicker(){
+    if(tickWorker){tickWorker.terminate();tickWorker=null;}
+    if(ticker){clearInterval(ticker);ticker=null;}
+  }
+
+  // Save / restore the timer so a reload or a discarded tab picks up where it left off
+  var SKEY="focus-timer-state";
+  var note="";
+  function today(){var d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();}
+  function saveState(){
+    try{localStorage.setItem(SKEY,JSON.stringify({mode:mode,total:total,remain:remain,running:running,endAt:endAt,done:done,day:today()}));}catch(e){}
+  }
+  function restore(){
+    var st=null;
+    try{st=JSON.parse(localStorage.getItem(SKEY)||"null");}catch(e){}
+    if(!st||!NAMES[st.mode]||!(st.total>0))return;
+    mode=st.mode;total=st.total;remain=Math.min(Math.max(st.remain,0),total);
+    done=(st.day===today()&&st.done>0)?st.done:0;
+    if(st.running&&st.endAt){
+      var left=st.endAt-Date.now();
+      if(left>0){
+        remain=Math.min(left,total);endAt=st.endAt;running=true;startTicker();wakeOn();
+      }else{
+        var wasFocus=(mode==="focus");
+        if(wasFocus)done++;
+        note=wasFocus?"離れている間に集中が終わりました":"離れている間に休憩が終わりました";
+        mode=next();total=cfg[mode]*60000;remain=total;
+      }
+    }
+  }
+  window.addEventListener("pagehide",saveState);
+  document.addEventListener("visibilitychange",function(){if(document.hidden)saveState();});
+
+  // PWA: service worker (needs HTTPS or localhost)
+  if("serviceWorker" in navigator){
+    window.addEventListener("load",function(){
+      navigator.serviceWorker.register("sw.js").then(function(r){swReg=r;}).catch(function(){});
+    });
+  }
+
+  restore();
+  render();
+  saveState();
+})();
+</script>
+</body>
+</html>
